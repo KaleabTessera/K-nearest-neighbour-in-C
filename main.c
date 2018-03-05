@@ -43,7 +43,7 @@ void printArray( double * array[], int numElements,int dimension){
         printf( "[" );
         for(int y = 0; y < dimension; y++){
             printf( "%lf", array[x][y] );
-            if(x != numElements -1){
+            if(y != dimension -1){
                 printf(",");
             }
         }
