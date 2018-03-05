@@ -30,7 +30,9 @@ int main() {
     pjArray[1] = pj2;
 
     double** array = getDistances(qiArray,pjArray);
-     printf( "%lf", array[0][0] );
+     printArray(qiArray,2,2);
+     printArray(pjArray,2,2);
+     printArray(array,2,2);
     
     return 0;
 }
@@ -72,7 +74,7 @@ double* getDistancePerQueryPoint(double * qi, double * pjArray[], int pjArrayLen
 
 
 double euclideanDistance(double * qi, double * pj){
-    int distance = 0;
+    double distance = 0;
     for(int index = 0; index < dimension; index++){
             distance += pow((qi[index] - pj[index]),2);
     }
