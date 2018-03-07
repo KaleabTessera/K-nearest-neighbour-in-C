@@ -16,7 +16,7 @@ enum ElementType { et_str, et_int, et_dbl };
 typedef struct Element {
     double output;
     enum ElementType type;
-    float inputs[10];
+    double inputs[];
 } record_t;
     
 const char* getfield(char* line, int num)
@@ -39,12 +39,6 @@ int cmpfunc (const void * a, const void * b) {
 
 int main() {
 
-   
-    double** qiArray= (double**)malloc(sizeof(double*)*1024);
-    double ** pjArray=(double**)malloc(sizeof(double*)*1024);
-    record_t records[100];
-    size_t count = 0;
-
     FILE* stream = fopen("winequality-red-large.csv", "r");
     char line[1024];
     
@@ -53,13 +47,21 @@ int main() {
 
     //+1 to cater for first line with feature headings
     int maxNumLinesRead = maxNumberOfElements + 1;
-
-    const char delimeter[2] = ";";
     //Percentage of data placed in reference set
     double percentageReferenceSet = 0.8;
+
     dimension = 12;
     numberOfElementsInReferenceSet = (int)(percentageReferenceSet * maxNumberOfElements);
     numberOfElementsInQuerySet = maxNumberOfElements - numberOfElementsInReferenceSet;
+
+    double** qiArray= (double**)malloc(sizeof(double*)*numberOfElementsInQuerySet);
+    double ** pjArray=(double**)malloc(sizeof(double*)*numberOfElementsInReferenceSet);
+    record_t records[maxNumberOfElements];
+    size_t count = 0;
+
+    const char delimeter[2] = ";";
+    
+   
     int indexReferenceArray = 0;
     int indexQueryArray = 0;
 
@@ -67,30 +69,30 @@ int main() {
     while (fgets(line, 1024, stream) && (lineNumber < maxNumLinesRead))
     {
         if(lineNumber > 0){
-        char* tmp = strdup(line);
-        int column = 0;
-        double* element = (double*)malloc(sizeof(double)*dimension);
-        char* token;
-        token = strtok(tmp, delimeter);
-        // https://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
-        while( token != NULL ) {
-            if(lineNumber > 0){
-                element[column] = strtod (token, NULL); 
+            char* tmp = strdup(line);
+            int column = 0;
+            double* element = (double*)malloc(sizeof(double)*dimension);
+            char* token;
+            token = strtok(tmp, delimeter);
+            // https://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
+            while( token != NULL ) {
+                if(lineNumber > 0){
+                    element[column] = strtod (token, NULL); 
+                }
+                column=column+1;
+                token = strtok(NULL,delimeter);
             }
-            column=column+1;
-            token = strtok(NULL,delimeter);
-        }
-        
-        if(lineNumber <= numberOfElementsInReferenceSet){
-            pjArray[indexReferenceArray] = element;
-            indexReferenceArray = indexReferenceArray+1;
-        }
-        else {
-            qiArray[indexQueryArray] = element;
-            indexQueryArray = indexQueryArray+1;
-        } 
-        free(tmp);
-        free(token);
+            
+            if(lineNumber <= numberOfElementsInReferenceSet){
+                pjArray[indexReferenceArray] = element;
+                indexReferenceArray = indexReferenceArray+1;
+            }
+            else {
+                qiArray[indexQueryArray] = element;
+                indexQueryArray = indexQueryArray+1;
+            } 
+            free(tmp);
+            free(token);
         }
         lineNumber = lineNumber+1;
     }
