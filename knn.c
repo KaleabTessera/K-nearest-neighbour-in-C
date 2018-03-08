@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <omp.h>
+#include <time.h>
 
 typedef enum {Euclidean, Manhattan} DistanceFormulae;
 typedef enum {QuickSort, InsertionSort, SelectionSort } SortFormulae;
@@ -13,6 +14,7 @@ int numberOfElementsInReferenceSet = 0;
 int k;
 DistanceFormulae distanceFormulae;
 SortFormulae sortFormulae;
+FILE *fileToWrite;
 
 typedef struct Element {
     double output;
@@ -32,77 +34,133 @@ void printArray3d( double *** array, int numElements,int dimension);
 
 int main() {
 
-    FILE* stream = fopen("mnist_train.csv", "r");
-    char line[2048];
-    
-    int lineNumber = 0;
-    int maxNumberOfElements = 100;
-    int indexOfOutput = 0;
-    k = 5;
+    int numMaxElementsConfig = 3;
+    int numDimensionConfig = 6;
+    int numMaxElements[4] = {100,250,1000,600};//,2000,4000,8000,16000};
+    int dimensions[6] = {32,40,128,256,512,600};
+    int numberOfTimesRepeated = 8;
 
-    //+1 to cater for first line with feature headings
-    int maxNumLinesRead = maxNumberOfElements + 1;
-    //Percentage of data placed in reference set
-    double percentageReferenceSet = 0.8;
+    //https://en.wikipedia.org/wiki/C_date_and_time_functions
+     /* Obtain current time. */
+    time_t current_time;
+    char* c_time_string;
+    current_time = time(NULL);
 
-    numColumns = 10000;
-    //dimension excludes output column
-    dimension = numColumns-1;
-    numberOfElementsInReferenceSet = (int)(percentageReferenceSet * maxNumberOfElements);
-    numberOfElementsInQuerySet = maxNumberOfElements - numberOfElementsInReferenceSet;
-
-    record_t** qiArray= (record_t**)malloc(sizeof(record_t*)*numberOfElementsInQuerySet);
-    record_t** pjArray=(record_t**)malloc(sizeof(record_t*)*numberOfElementsInReferenceSet);
-    
-    size_t count = 0;
-
-    const char delimeter[2] = ",";
-    
-   
-    int indexReferenceArray = 0;
-    int indexQueryArray = 0;
-
-    //Reading in CSV
-    //https://stackoverflow.com/questions/12911299/read-csv-file-in-c
-    while (fgets(line, 2048, stream) && (lineNumber < maxNumLinesRead))
+    if (current_time == ((time_t)-1))
     {
-        if(lineNumber > 0){
-            char* tmp = strdup(line);
-            int column = 0;
-            record_t* record =(record_t*)malloc(sizeof(record_t)*dimension);
-            double* element = (double*)malloc(sizeof(double)*dimension);
-            char* token;
-            token = strtok(tmp, delimeter);
-            // https://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
-            while( token != NULL && column < numColumns) {
-                if(lineNumber > 0){
-                    if(column == indexOfOutput){
-                        record->output = strtod (token, NULL);    
-                    }
-                    else record->inputs[column] = strtod (token, NULL);
-                }
-                column=column+1;
-                token = strtok(NULL,delimeter);
-            }
-            
-            if(lineNumber <= numberOfElementsInReferenceSet){
-                pjArray[indexReferenceArray] = record;
-                indexReferenceArray = indexReferenceArray+1;
-            }
-            else {
-                qiArray[indexQueryArray] = record;
-                indexQueryArray = indexQueryArray+1;
-            } 
-            free(tmp);
-        }
-        lineNumber = lineNumber+1;
+        (void) fprintf(stderr, "Failure to obtain the current time.\n");
+        exit(EXIT_FAILURE);
     }
-    printf("%s %d \n","Reference Set Size:",numberOfElementsInReferenceSet );
-    //printStruct(pjArray,numberOfElementsInReferenceSet,dimension);
-    printf("%s %d \n \n","Query Set Size:",numberOfElementsInQuerySet);
-    //printStruct(qiArray,numberOfElementsInQuerySet,dimension);
 
-    KNN(qiArray,pjArray);
+    /* Convert to local time format. */
+    c_time_string = ctime(&current_time);
+
+    if (c_time_string == NULL)
+    {
+        (void) fprintf(stderr, "Failure to convert the current time.\n");
+        exit(EXIT_FAILURE);
+    }
+
+
+    //strcat(c_time_string,".txt");
+
+    char str[2000] ;
+    strcat(str, "./results/ ");
+    strcat(str, c_time_string);
+    strcat(str, ".txt");
+    fileToWrite = fopen(str, "w");
+    if (fileToWrite == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+  
+    FILE* stream = fopen("mnist_train.csv", "r");
+    for(int total = 0; total < numMaxElementsConfig; total++){
+        for(int d =0; d< numDimensionConfig; d++){
+            for(int i=0; i<numberOfTimesRepeated; i++ ){
+                fprintf(fileToWrite,"\n %s \n","***********************************************************************************");
+                fprintf(fileToWrite,"NumElmennts: %d NumDimensions: %d \n",numMaxElements[total], dimensions[d] );
+                fprintf(fileToWrite,"Run number: %d \n", i );
+                char line[2048];
+
+                int lineNumber = 0;
+                int maxNumberOfElements = numMaxElements[total];
+                int indexOfOutput = 0;
+                k = 5;
+
+                //+1 to cater for first line with feature headings
+                int maxNumLinesRead = maxNumberOfElements + 1;
+                //Percentage of data placed in reference set
+                double percentageReferenceSet = 0.8;
+
+                //dimension excludes output column
+                dimension = dimensions[d];
+                numColumns = dimension +1;
+
+                numberOfElementsInReferenceSet = (int)(percentageReferenceSet * maxNumberOfElements);
+                numberOfElementsInQuerySet = maxNumberOfElements - numberOfElementsInReferenceSet;
+
+                record_t** qiArray= (record_t**)malloc(sizeof(record_t*)*numberOfElementsInQuerySet);
+                record_t** pjArray=(record_t**)malloc(sizeof(record_t*)*numberOfElementsInReferenceSet);
+
+                size_t count = 0;
+
+                const char delimeter[2] = ",";
+
+
+                int indexReferenceArray = 0;
+                int indexQueryArray = 0;
+
+                //Reading in CSV
+                //https://stackoverflow.com/questions/12911299/read-csv-file-in-c
+                while (fgets(line, 2048, stream) && (lineNumber < maxNumLinesRead))
+                {
+                    //if(lineNumber > 0){
+                        char* tmp = strdup(line);
+                        int column = 0;
+                        record_t* record =(record_t*)malloc(sizeof(record_t)*numColumns+1);
+                        char* token;
+                        token = strtok(tmp, delimeter);
+                        // https://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
+                        while( token != NULL && column < numColumns) {
+                            if(lineNumber > 0){
+                                if(column == indexOfOutput){
+                                    record->output = strtod (token, NULL);    
+                                }
+                                else record->inputs[column] = strtod (token, NULL);
+                            }
+                            column=column+1;
+                            token = strtok(NULL,delimeter);
+                        }
+
+                        if(lineNumber <= numberOfElementsInReferenceSet){
+                            pjArray[indexReferenceArray] = record;
+                            indexReferenceArray = indexReferenceArray+1;
+                        }
+                        else {
+                            qiArray[indexQueryArray] = record;
+                            indexQueryArray = indexQueryArray+1;
+                        } 
+                        free(tmp);
+                        //free(token);
+                        //free(record);
+                    //}
+                    lineNumber = lineNumber+1;
+
+                }
+                fprintf(fileToWrite,"%s %d \n","Reference Set Size:",numberOfElementsInReferenceSet );
+                //printStruct(pjArray,numberOfElementsInReferenceSet,dimension);
+                fprintf(fileToWrite,"%s %d \n \n","Query Set Size:",numberOfElementsInQuerySet);
+                //printStruct(qiArray,numberOfElementsInQuerySet,dimension);
+
+
+                KNN(qiArray,pjArray);
+                free(qiArray);
+                free(pjArray);
+                }
+        }
+    }
 
     return 0;
 }
@@ -231,14 +289,14 @@ void KNN(record_t** qiArray, record_t ** pjArray){
     startTimeEuclideanDistance = omp_get_wtime();
 	double*** distanceArrayEuclidean = getDistances(qiArray,pjArray);
 	runTimeEuclideanDistance += omp_get_wtime() - startTimeEuclideanDistance;
-    printf("Run time for distance step (Euclidean Distance): %f seconds\n\n",runTimeEuclideanDistance);
+    fprintf(fileToWrite,"Run time for distance step (Euclidean Distance): %f seconds\n\n",runTimeEuclideanDistance);
 
     //Manhattan Distance
     distanceFormulae = Manhattan;
     startTimeManhattanDistance = omp_get_wtime();
 	double*** distanceArrayManhattan = getDistances(qiArray,pjArray);
 	runTimeManhattanDistance += omp_get_wtime() - startTimeManhattanDistance;
-    printf("Run time for distance step (Manhattan Distance): %f seconds\n\n",runTimeManhattanDistance);
+    fprintf(fileToWrite,"Run time for distance step (Manhattan Distance): %f seconds\n\n",runTimeManhattanDistance);
 
     //Step 2 
     //Quick Sort
@@ -246,24 +304,29 @@ void KNN(record_t** qiArray, record_t ** pjArray){
         startTimeQuickSort = omp_get_wtime();
 	    sortElements(distanceArrayEuclidean,numberOfElementsInQuerySet);
 	    runTimeQuickSort += omp_get_wtime() - startTimeQuickSort;
-        printf("Run time for sort step (Quick Sort): %f seconds\n\n",runTimeQuickSort);
+        fprintf(fileToWrite,"Run time for sort step (Quick Sort): %f seconds\n\n",runTimeQuickSort);
     }
     //Insertion Sort
     if(sortFormulae == InsertionSort){
         startTimeInsertionSort = omp_get_wtime();
 	    sortElements(distanceArrayManhattan,numberOfElementsInQuerySet);
 	    runTimeInsertionSort += omp_get_wtime() - startTimeInsertionSort;
-        printf("Run time for sort step (Insertion Sort): %f seconds\n\n",runTimeInsertionSort);
+        fprintf(fileToWrite,"Run time for sort step (Insertion Sort): %f seconds\n\n",runTimeInsertionSort);
     }
     //Selection Sort
     if(sortFormulae == SelectionSort){
         startTimeSelectionSort = omp_get_wtime();
 	    sortElements(distanceArrayManhattan,numberOfElementsInQuerySet);
 	    runTimeSelectionSort += omp_get_wtime() - startTimeSelectionSort;
-        printf("Run time for sort step (Selection Sort): %f seconds\n\n",runTimeSelectionSort);
+        fprintf(fileToWrite,"Run time for sort step (Selection Sort): %f seconds\n\n",runTimeSelectionSort);
     }
     //Step 3 select the k reference points corresponding to the k smallest distances;
     findNeighboursAllData(distanceArrayEuclidean,qiArray,k,numberOfElementsInQuerySet);
+
+    // free(distanceArrayEuclidean);
+    // free(distanceArrayManhattan);
+    // free(qiArray);
+    // free(pjArray);
 }
 
 double*** getDistances(record_t** qiArray, record_t ** pjArray){
@@ -297,6 +360,7 @@ double** getDistancePerQueryPoint(record_t * qi, record_t ** pjArray, int pjArra
 
 
 double euclideanDistance(double * qi, double * pj){
+    
     double distance = 0;
     for(int index = 0; index < dimension; index++){
             distance += pow((qi[index] - pj[index]),2);
@@ -309,7 +373,7 @@ double manhattanDistance(double * qi, double * pj){
     for(int index = 0; index < dimension; index++){
             distance += abs(qi[index] - pj[index]);
     }
-    return sqrt(distance);
+    return distance;
 }
 
 //https://www.tutorialspoint.com/c_standard_library/c_function_qsort.htm
