@@ -144,7 +144,7 @@ int main() {
                         } 
                         free(tmp);
                         //free(token);
-                        //free(record);
+                        free(record);
                     //}
                     lineNumber = lineNumber+1;
 
@@ -222,6 +222,8 @@ void findNeighbours(double **array, int k, double actualOutput){
     //printf("\nAssigned output:  %lf", countOccurences[indexLargest][0]);
     //printf("\nActual output:  %lf", actualOutput);
     //printf("%s","\n");
+
+    free(countOccurences);
 }
 
 void printArray( double ** array,int dimension){
@@ -323,8 +325,8 @@ void KNN(record_t** qiArray, record_t ** pjArray){
     //Step 3 select the k reference points corresponding to the k smallest distances;
     findNeighboursAllData(distanceArrayEuclidean,qiArray,k,numberOfElementsInQuerySet);
 
-    // free(distanceArrayEuclidean);
-    // free(distanceArrayManhattan);
+     free(distanceArrayEuclidean);
+     free(distanceArrayManhattan);
     // free(qiArray);
     // free(pjArray);
 }
