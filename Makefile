@@ -3,11 +3,14 @@ FLAGS=-I$(INC)
 OMPFLAG=-fopenmp
 CC=gcc
 
-main: main.c
-	$(CC) main.c -o main -lm
+knn: knn.c
+	$(CC) knn.c -o knn -lm $(OMPFLAG)
 
-debug: main.c
-	$(CC) -g main.c -o debug -lm
+knn_parallel: knn_parallel.c
+	$(CC) knn_parallel.c -o knn_parallel -lm $(OMPFLAG)
+
+debug: knn.c
+	$(CC) -g knn.c -o debug -lm
 
 clean:
 	rm main
