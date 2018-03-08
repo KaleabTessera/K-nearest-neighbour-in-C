@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <omp.h>
 
 int dimension = 0;
 int numColumns = 0;
@@ -8,26 +9,19 @@ int numberOfElementsInQuerySet = 0;
 int numberOfElementsInReferenceSet = 0;
 int k;
 
-enum ElementType { et_str, et_int, et_dbl };
 typedef struct Element {
     double output;
-    enum ElementType type;
     double inputs[];
 } record_t;
-
-typedef struct ArrayElement{
-    double output;
-    enum ElementType type;
-    double inputs[];
-} array_element ;
-    
+ 
 
 //void printArray( double ** pj, int numElements,int dimension);
 void printArray( double ** array,int dimension);
-void getDistances(record_t** qiArray, record_t ** pjArray);
+double*** getDistances(record_t** qiArray, record_t ** pjArray);
 double** getDistancePerQueryPoint(record_t * qi, record_t ** pjArray, int pjArrayLength);
 double euclideanDistance(double * qi, double * pj);
-void quickSort(double ** array, int arraySize);
+void quickSort(double *** array, int arraySize);
+void KNN(record_t** qiArray, record_t ** pjArray);
 //int indexOfElement(int val, int *arr, int size);
 
 
@@ -42,7 +36,7 @@ int main() {
     char line[2048];
     
     int lineNumber = 0;
-    int maxNumberOfElements = 1000;
+    int maxNumberOfElements = 5000;
     int indexOfOutput = 0;
     k = 5;
 
@@ -107,10 +101,10 @@ int main() {
     }
     printf("%s %d \n","Reference Set Size:",numberOfElementsInReferenceSet );
     //printStruct(pjArray,numberOfElementsInReferenceSet,dimension);
-    printf("%s %d \n","Query Set Size:",numberOfElementsInQuerySet);
+    printf("%s %d \n \n","Query Set Size:",numberOfElementsInQuerySet);
     //printStruct(qiArray,numberOfElementsInQuerySet,dimension);
 
-    getDistances(qiArray,pjArray);
+    KNN(qiArray,pjArray);
 
     return 0;
 }
@@ -139,11 +133,15 @@ int indexOfLargestElement( double ** arr, int size){
     return index;
 }
 
-void findNeighbours(double **array, int k, double actualOutput){
-    printf("%s %d \n","Finding neighbours with k: ",k);
-    double predictedOutputs[k];
-    //double** countOccurences= (double*)malloc(sizeof(double)*dimension);;
+void findNeighboursAllData(double ***array, record_t** qiArray,int k,int size){
+    for(int i= 0; i < size;i++){
+        findNeighbours(array[i],k,qiArray[i]->output);
+    }
+}
 
+void findNeighbours(double **array, int k, double actualOutput){
+    //printf("%s %d \n","Finding neighbours with k: ",k);
+    double predictedOutputs[k];
     double **countOccurences = (double **)malloc(k * sizeof(double *));
     for (int i=0; i<k; i++)
          countOccurences[i] = (double *)malloc(2 * sizeof(int));
@@ -151,8 +149,8 @@ void findNeighbours(double **array, int k, double actualOutput){
     int indexInOccurenceArray;
     for(int i=0; i< k;i++){
         predictedOutputs[i] = array[i][1];
-        printf("%s %d %s %lf","Predicted output, neighbour ",i,":" ,predictedOutputs[i]);
-        printf(" \n");
+        //printf("%s %d %s %lf","Predicted output, neighbour ",i,":" ,predictedOutputs[i]);
+        //printf(" \n");
         
         indexInOccurenceArray =  indexOfElement(predictedOutputs[i],countOccurences,k);
         if(indexInOccurenceArray == -1){
@@ -165,9 +163,9 @@ void findNeighbours(double **array, int k, double actualOutput){
         
     }
     int indexLargest = indexOfLargestElement(countOccurences,k);
-    printf("\nAssigned output:  %lf", countOccurences[indexLargest][0]);
-    printf("\nActual output:  %lf", actualOutput);
-    printf("%s","\n");
+    //printf("\nAssigned output:  %lf", countOccurences[indexLargest][0]);
+    //printf("\nActual output:  %lf", actualOutput);
+    //printf("%s","\n");
 }
 
 void printArray( double ** array,int dimension){
@@ -201,33 +199,59 @@ void printStruct( record_t ** array, int numElements,int dimension){
     }
     printf("] \n");
 }
-void quickSort(double ** array, int arraySize){
+void quickSort(double *** array, int arraySize){
     for(int index = 0 ; index < arraySize; index++){
         qsort(array[index], numberOfElementsInReferenceSet, sizeof(double*), cmpfunc);
     }
 }
 
+void KNN(record_t** qiArray, record_t ** pjArray){
+    double startTimeDistance, runTimeDistance=0;
+    double startTimeSort, runTimeSort=0;
+    
+    //Step 1 compute all the distances between qi and pj , 0 ≤ j ≤ m,0 ≤ i < n − 1,
+    startTimeDistance = omp_get_wtime();
+	double*** distanceArray = getDistances(qiArray,pjArray);
+	runTimeDistance += omp_get_wtime() - startTimeDistance;
+    printf("Run time for distance step: %f seconds\n\n",runTimeDistance);
 
-void getDistances(record_t** qiArray, record_t ** pjArray){
+    //Step 2 
+    startTimeSort = omp_get_wtime();
+	quickSort(distanceArray,numberOfElementsInQuerySet);
+	runTimeSort += omp_get_wtime() - startTimeSort;
+    printf("Run time for sort step: %f seconds\n\n",runTimeSort);
+
+    //Step 3 select the k reference points corresponding to the k smallest distances;
+    findNeighboursAllData(distanceArray,qiArray,k,numberOfElementsInQuerySet);
+
+
+    // double*** euclideanDistanceArray= (double***)malloc(sizeof(double**)*numberOfElementsInReferenceSet);
+    // //Step 0 & 4. repeat steps 1 to 3 for q i+1 .
+    // for(int index = 0 ; index < numberOfElementsInQuerySet; index++){
+    //     printf("%s","\n");
+    //     //Step 1 compute all the distances between q i and p j , 0 ≤ j ≤ m;
+    //     //printf("%s \n","Step 1 compute all the distances between q i and p j , 0 ≤ j ≤ m;");
+    //     euclideanDistanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,numberOfElementsInReferenceSet);
+    //     //printf("%s","Distance array: ");
+    //     //printArray(euclideanDistanceArray[index],numberOfElementsInReferenceSet);
+        
+    //     //Step 2 sort the computed distances;
+    //     //printf("\n%s","Step 2 sort the computed distances; \n");
+    //     qsort(euclideanDistanceArray[index], numberOfElementsInReferenceSet, sizeof(double*), cmpfunc);
+    //     //printf("%s","Sorted distance array: ");
+    //     //printArray(euclideanDistanceArray[index],numberOfElementsInReferenceSet);
+        
+    //     //printf("\n%s","Step 3 select the k reference points corresponding to the k smallest distances \n");
+    //     //Step 3 select the k reference points corresponding to the k smallest distances;
+    //     findNeighbours(euclideanDistanceArray[index],k,qiArray[index]->output);
+    // }
+    // /return void;
+}
+
+double*** getDistances(record_t** qiArray, record_t ** pjArray){
     double*** euclideanDistanceArray= (double***)malloc(sizeof(double**)*numberOfElementsInReferenceSet);
-    //Step 0 & 4. repeat steps 1 to 3 for q i+1 .
     for(int index = 0 ; index < numberOfElementsInQuerySet; index++){
-        printf("%s","\n");
-        //Step 1 compute all the distances between q i and p j , 0 ≤ j ≤ m;
-        //printf("%s \n","Step 1 compute all the distances between q i and p j , 0 ≤ j ≤ m;");
         euclideanDistanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,numberOfElementsInReferenceSet);
-        //printf("%s","Distance array: ");
-        //printArray(euclideanDistanceArray[index],numberOfElementsInReferenceSet);
-        
-        //Step 2 sort the computed distances;
-        //printf("\n%s","Step 2 sort the computed distances; \n");
-        qsort(euclideanDistanceArray[index], numberOfElementsInReferenceSet, sizeof(double*), cmpfunc);
-        //printf("%s","Sorted distance array: ");
-        //printArray(euclideanDistanceArray[index],numberOfElementsInReferenceSet);
-        
-        //printf("\n%s","Step 3 select the k reference points corresponding to the k smallest distances \n");
-        //Step 3 select the k reference points corresponding to the k smallest distances;
-        findNeighbours(euclideanDistanceArray[index],k,qiArray[index]->output);
     }
     return euclideanDistanceArray;
 }
