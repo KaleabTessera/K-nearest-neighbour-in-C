@@ -15,22 +15,22 @@ double** getDistancePerQueryPoint(record_t * qi, record_t ** pjArray, int pjArra
 
 double*** getDistancesParallel(record_t** qiArray, record_t ** pjArray,int x, int y, int dimension){
     dimension = dimension;
-    double*** euclideanDistanceArray= (double***)malloc(sizeof(double**)*y);
+    double*** distanceArray= (double***)malloc(sizeof(double**)*y);
     #pragma omp parallel
-    #pragma omp for
+    #pragma omp for schedule(dynamic)
     for(int index = 0 ; index < x; index++){
-        euclideanDistanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,y);
+        distanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,y);
     }
-    return euclideanDistanceArray;
+    return distanceArray;
 }
 
 double*** getDistancesSerial(record_t** qiArray, record_t ** pjArray,int x, int y, int dimension){
     dimension = dimension;
-    double*** euclideanDistanceArray= (double***)malloc(sizeof(double**)*y);
+    double*** distanceArray= (double***)malloc(sizeof(double**)*y);
     for(int index = 0 ; index < x; index++){
-        euclideanDistanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,y);
+        distanceArray[index] = getDistancePerQueryPoint(qiArray[index],pjArray,y);
     }
-    return euclideanDistanceArray;
+    return distanceArray;
 }
 
 
