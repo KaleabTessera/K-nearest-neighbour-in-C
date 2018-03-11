@@ -9,6 +9,8 @@
 #include <time.h>
 #include "common.h" 
 
+#include <string.h>
+
 //https://www.tutorialspoint.com/c_standard_library/c_function_qsort.htm
 //https://stackoverflow.com/questions/6103636/c-qsort-not-working-correctly
 
@@ -28,7 +30,7 @@ void sortElements(double *** array, int arraySize, int numberOfElementsInReferen
     }
     else if( sortFormulae == RadixSort){
         for(int index = 0 ; index < arraySize; index++){
-            radixSort(array[index], numberOfElementsInReferenceSet);
+            radixsort(array[index], numberOfElementsInReferenceSet);
         }
     }
     else if(sortFormulae == SelectionSort){
@@ -46,7 +48,7 @@ void sortElementsParallel(double *** array, int arraySize, int numberOfElementsI
     }
     else if( sortFormulae == RadixSort){
         for(int index = 0 ; index < arraySize; index++){
-            radixsort(array[index], numberOfElementsInReferenceSet);
+            radixsortParallel(array[index], numberOfElementsInReferenceSet);
         }
     }
     else if(sortFormulae == SelectionSort){
@@ -55,50 +57,6 @@ void sortElementsParallel(double *** array, int arraySize, int numberOfElementsI
         }
     }
 }
-
-// //https://www.geeksforgeeks.org/Radix-sort/
-// void radixSort(double** arr, int n)
-// {
-//    double  key;
-//    int i, j;
-//    for (i = 1; i < n; i++)
-//    {
-//        key = arr[i][0];
-//        j = i-1;
- 
-//        /* Move elements of arr[0..i-1], that are
-//           greater than key, to one position ahead
-//           of their current position */
-//        while (j >= 0 && arr[j][0] > key)
-//        {
-//            arr[j+1][0] = arr[j][0];
-//            j = j-1;
-//        }
-//        arr[j+1][0] = key;
-//    }
-// }
-
-
-// void RadixSortParallel(double** arr, int n)
-// {
-//    double  key;
-//    int i, j;
-//    for (i = 1; i < n; i++)
-//    {
-//        key = arr[i][0];
-
-//        #pragma omp parallel sections{
-
-//        }
-//        for (int j = i-1;j >= 0 && arr[j][0] > key;j--)
-//        {
-//            arr[j+1][0] = arr[j][0];
-//        }
-
-       
-//        arr[j+1][0] = key;
-//    }
-// }
 
 //https://www.geeksforgeeks.org/radix-sort/
 // A utility function to get maximum value in arr[]
@@ -111,8 +69,54 @@ double getMax(double** arr, int n)
     return mx;
 }
  
-// A function to do counting sort of arr[] according to
-// the digit represented by exp.
+void countSortParallel(double** arr, int n, int exp)
+{
+    double output[n]; // output array
+    int i, count[10] = {0},count1[10] = {0},count2[10] = {0},count3[10] = {0},count4[10] = {0};
+    int numSplits = 4;
+    double **split1 = (double **)malloc(n/numSplits * sizeof(double *));
+    double **split2 = (double **)malloc(n/numSplits * sizeof(double *));
+    double **split3 = (double **)malloc(n/numSplits * sizeof(double *));
+    double **split4 = (double **)malloc(n/numSplits * sizeof(double *));
+    memcpy(split1, arr                          , n/numSplits * sizeof(double *));
+    memcpy(split2, arr+(n/numSplits)            ,n/numSplits* sizeof(double *));
+    memcpy(split3, arr +(2 * n/numSplits)       , n/numSplits * sizeof(double *));
+    memcpy(split4, arr+ (3 * n/numSplits)       ,n/numSplits * sizeof(double *));
+    // Store count of occurrences in count[]
+    
+    #pragma omp parallel sections num_threads(4)
+    {
+        #pragma omp section
+    for (int i = 0; i < n/numSplits; i++)
+        count1[((int)split1[i][0]/exp)%10 ]++;
+        #pragma omp section
+     for (int i = 0; i < n/numSplits; i++)
+        count2[((int)split2[i][0]/exp)%10 ]++;
+        #pragma omp section
+    for (int i = 0; i < n/numSplits; i++)
+        count3[((int)split3[i][0]/exp)%10 ]++;
+        #pragma omp section
+     for (int i = 0; i < n/numSplits; i++)
+        count4[((int)split4[i][0]/exp)%10 ]++;
+    }
+
+    for (i = 0; i < 10; i++)
+        count[i] =  count1[i] + count2[i] + count3[i]+ count4[i];
+
+
+    for (i = 1; i < 10; i++)
+        count[i] += count[i - 1];
+ 
+    for (int i = n - 1; i >= 0; i--)
+    {
+        output[count[ ((int)arr[i][0]/exp)%10 ] - 1] = arr[i][0];
+        count[ ((int)arr[i][0]/exp)%10 ]--;
+    }
+
+    for (i = 0; i < n; i++)
+        arr[i][0] = (int)output[i];
+}
+
 void countSort(double** arr, int n, int exp)
 {
     double output[n]; // output array
@@ -139,9 +143,9 @@ void countSort(double** arr, int n, int exp)
     for (i = 0; i < n; i++)
         arr[i][0] = (int)output[i];
 }
- 
-// The main function to that sorts arr[] of size n using 
-// Radix Sort
+
+//https://www.geeksforgeeks.org/radix-sort/
+
 void radixsort(double** arr, int n)
 {
     // Find the maximum number to know number of digits
@@ -153,6 +157,19 @@ void radixsort(double** arr, int n)
     
     for (int exp = 1; m/exp > 0; exp *= 10)
         countSort(arr, n, exp);
+}
+
+void radixsortParallel(double** arr, int n)
+{
+    // Find the maximum number to know number of digits
+    double m = getMax(arr, n);
+ 
+    // Do counting sort for every digit. Note that instead
+    // of passing digit number, exp is passed. exp is 10^i
+    // where i is current digit number
+    
+    for (int exp = 1; m/exp > 0; exp *= 10)
+        countSortParallel(arr, n, exp);
 }
  
 //https://www.geeksforgeeks.org/selection-sort/
